@@ -1,0 +1,1 @@
+This folder contains OVN yaml files for shared gaetway mode with centos based images

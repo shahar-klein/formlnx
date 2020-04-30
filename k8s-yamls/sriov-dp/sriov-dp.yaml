@@ -1,0 +1,73 @@
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL3F1YXkuaW8iOnsidXNlcm5hbWUiOiJudmlkaWErc2RuIiwicGFzc3dvcmQiOiI2MExPVFNOQ0ZPM1AwMzhMNjhPMEFVTE1GUkRLVkJQQzYxSFpKQklLSTM3N09OVEtXV0FPNVJZMUxBWUJSWEtDIiwiYXV0aCI6ImJuWnBaR2xoSzNOa2JqbzJNRXhQVkZOT1EwWlBNMUF3TXpoTU5qaFBNRUZWVEUxR1VrUkxWa0pRUXpZeFNGcEtRa2xMU1RNM04wOU9WRXRYVjBGUE5WSlpNVXhCV1VKU1dFdEQifX19
+metadata:
+  name: sriov-dp-registry-credentials
+  namespace: kube-system
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sriov-device-plugin
+  namespace: kube-system
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-sriov-device-plugin-amd64
+  namespace: kube-system
+  labels:
+    tier: node
+    app: sriovdp
+spec:
+  selector:
+    matchLabels:
+      name: sriov-device-plugin
+  template:
+    metadata:
+      labels:
+        name: sriov-device-plugin
+        tier: node
+        app: sriovdp
+    spec:
+      imagePullSecrets:
+        - name: sriov-dp-registry-credentials
+      hostNetwork: true
+      hostPID: true
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+      serviceAccountName: sriov-device-plugin
+      containers:
+      - name: kube-sriovdp
+        image: "quay.io/nvidia/sriov-dp:bf28fdc3e2d9"
+        imagePullPolicy: "IfNotPresent"
+        args:
+        - --log-dir=sriovdp
+        - --log-level=10
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: devicesock
+          mountPath: /var/lib/kubelet/
+          readOnly: false
+        - name: log
+          mountPath: /var/log
+        - name: config-volume
+          mountPath: /etc/pcidp/config.json
+      volumes:
+        - name: devicesock
+          hostPath:
+            path: /var/lib/kubelet/
+        - name: log
+          hostPath:
+            path: /var/log
+        - name: config-volume
+          hostPath:
+            path: /etc/pcidp/config.json
+            type: File
+

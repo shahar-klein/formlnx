@@ -1,0 +1,7 @@
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: sriov-storage-net
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: intel.com/sriov_storage
+

@@ -1,0 +1,100 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sriov
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - patch
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sriov
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sriov
+subjects:
+- kind: ServiceAccount
+  name: sriov
+  namespace: kube-system
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sriov
+  namespace: kube-system
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL3F1YXkuaW8iOnsidXNlcm5hbWUiOiJudmlkaWErc2RuIiwicGFzc3dvcmQiOiI2MExPVFNOQ0ZPM1AwMzhMNjhPMEFVTE1GUkRLVkJQQzYxSFpKQklLSTM3N09OVEtXV0FPNVJZMUxBWUJSWEtDIiwiYXV0aCI6ImJuWnBaR2xoSzNOa2JqbzJNRXhQVkZOT1EwWlBNMUF3TXpoTU5qaFBNRUZWVEUxR1VrUkxWa0pRUXpZeFNGcEtRa2xMU1RNM04wOU9WRXRYVjBGUE5WSlpNVXhCV1VKU1dFdEQifX19
+metadata:
+  name: sriov-registry-credentials
+  namespace: kube-system
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-sriov-cni-ds-amd64
+  namespace: kube-system
+  labels:
+    tier: node
+    app: sriov-cni
+spec:
+  selector:
+    matchLabels:
+      name: sriov-cni
+  template:
+    metadata:
+      labels:
+        name: sriov-cni
+        tier: node
+        app: sriov-cni
+    spec:
+      imagePullSecrets:
+        - name: sriov-registry-credentials
+      hostNetwork: true
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      serviceAccountName: sriov
+      containers:
+      - name: kube-sriov-cni
+        image: "quay.io/nvidia/sriov-cni:6e99e3523540"
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+        volumeMounts:
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
+        - name: cni
+          mountPath: /host/etc/cni/net.d
+      volumes:
+        - name: cnibin
+          hostPath:
+            path: /opt/cni/bin
+        - name: cni
+          hostPath:
+            path: /etc/cni/net.d
